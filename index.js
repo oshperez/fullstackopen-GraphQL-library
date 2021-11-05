@@ -1,55 +1,57 @@
 const { ApolloServer, gql } = require("apollo-server")
-const { ApolloServerPluginLandingPageGraphQLPlayground } = require("apollo-server-core");
+const {
+  ApolloServerPluginLandingPageGraphQLPlayground,
+} = require("apollo-server-core")
 
 let books = [
   {
-    title: 'Clean Code',
+    title: "Clean Code",
     published: 2008,
-    author: 'Robert Martin',
+    author: "Robert Martin",
     id: "afa5b6f4-344d-11e9-a414-719c6709cf3e",
-    genres: ['refactoring']
+    genres: ["refactoring"],
   },
   {
-    title: 'Agile software development',
+    title: "Agile software development",
     published: 2002,
-    author: 'Robert Martin',
+    author: "Robert Martin",
     id: "afa5b6f5-344d-11e9-a414-719c6709cf3e",
-    genres: ['agile', 'patterns', 'design']
+    genres: ["agile", "patterns", "design"],
   },
   {
-    title: 'Refactoring, edition 2',
+    title: "Refactoring, edition 2",
     published: 2018,
-    author: 'Martin Fowler',
+    author: "Martin Fowler",
     id: "afa5de00-344d-11e9-a414-719c6709cf3e",
-    genres: ['refactoring']
+    genres: ["refactoring"],
   },
   {
-    title: 'Refactoring to patterns',
+    title: "Refactoring to patterns",
     published: 2008,
-    author: 'Joshua Kerievsky',
+    author: "Joshua Kerievsky",
     id: "afa5de01-344d-11e9-a414-719c6709cf3e",
-    genres: ['refactoring', 'patterns']
-  },  
+    genres: ["refactoring", "patterns"],
+  },
   {
-    title: 'Practical Object-Oriented Design, An Agile Primer Using Ruby',
+    title: "Practical Object-Oriented Design, An Agile Primer Using Ruby",
     published: 2012,
-    author: 'Sandi Metz',
+    author: "Sandi Metz",
     id: "afa5de02-344d-11e9-a414-719c6709cf3e",
-    genres: ['refactoring', 'design']
+    genres: ["refactoring", "design"],
   },
   {
-    title: 'Crime and punishment',
+    title: "Crime and punishment",
     published: 1866,
-    author: 'Fyodor Dostoevsky',
+    author: "Fyodor Dostoevsky",
     id: "afa5de03-344d-11e9-a414-719c6709cf3e",
-    genres: ['classic', 'crime']
+    genres: ["classic", "crime"],
   },
   {
-    title: 'The Demon ',
+    title: "The Demon ",
     published: 1872,
-    author: 'Fyodor Dostoevsky',
+    author: "Fyodor Dostoevsky",
     id: "afa5de04-344d-11e9-a414-719c6709cf3e",
-    genres: ['classic', 'revolution']
+    genres: ["classic", "revolution"],
   },
 ]
 
@@ -60,41 +62,68 @@ const typeDefs = gql`
     author: String!
     id: ID!
     genres: [String!]!
-
   }
+
+  type Author {
+    name: String!
+    bookCount: Int!
+  }
+
   type Query {
     bookCount: Int
     authorCount: Int
     allBooks: [Book!]
+    allAuthors: [Author!]
   }
 `
 const resolvers = {
-  Query : {
+  Query: {
     bookCount: () => books.length,
     authorCount: () => {
-      const authors = books.map(book => book.author).reduce((prevAuthors, currentAuthor) => {
-        let noDuplicateAuthors
-        if(prevAuthors.indexOf(currentAuthor) === -1) {
-          noDuplicateAuthors = prevAuthors.concat(currentAuthor)
-        } else {
-          noDuplicateAuthors = [...prevAuthors]
-        }
-        return noDuplicateAuthors
-        
-      }, [])
+      const authors = books
+        .map((book) => book.author)
+        .reduce((prevAuthors, currentAuthor) => {
+          let noDuplicateAuthors
+          if (prevAuthors.indexOf(currentAuthor) === -1) {
+            noDuplicateAuthors = prevAuthors.concat(currentAuthor)
+          } else {
+            noDuplicateAuthors = [...prevAuthors]
+          }
+          return noDuplicateAuthors
+        }, [])
 
       return authors.length
     },
-    allBooks: () => books
-  }
+    allBooks: () => books,
+    allAuthors: () => {
+      return books
+        .map((book) => book.author)
+        .reduce((allAuthors, currentAuthor) => {
+          let duplicatedAuthor = allAuthors.find(
+            (author) => author.name === currentAuthor
+          )
+          if (duplicatedAuthor) {
+            allAuthors = allAuthors.map((author) =>
+              author.name === duplicatedAuthor.name
+                ? {
+                    ...duplicatedAuthor,
+                    bookCount: (duplicatedAuthor.bookCount += 1),
+                  }
+                : author
+            )
+          } else {
+            allAuthors = [...allAuthors, { name: currentAuthor, bookCount: 1 }]
+          }
+          return allAuthors
+        }, [])
+    },
+  },
 }
 
 const server = new ApolloServer({
   typeDefs,
   resolvers,
-  plugins: [
-    ApolloServerPluginLandingPageGraphQLPlayground({})
-  ]
+  plugins: [ApolloServerPluginLandingPageGraphQLPlayground({})],
 })
 
 server.listen().then(({ url }) => {
