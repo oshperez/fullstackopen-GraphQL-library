@@ -2,6 +2,7 @@ const { ApolloServer, gql } = require("apollo-server")
 const {
   ApolloServerPluginLandingPageGraphQLPlayground,
 } = require("apollo-server-core")
+const { v1: uuid } = require("uuid")
 
 let books = [
   {
@@ -67,6 +68,14 @@ const typeDefs = gql`
   type Author {
     name: String!
     bookCount: Int!
+    born: String
+  }
+
+  input BookInput {
+    title: String!
+    author: String!
+    published: Int!
+    genres: [String!]!
   }
 
   type Query {
@@ -74,6 +83,10 @@ const typeDefs = gql`
     authorCount: Int
     allBooks(author: String, genre: String): [Book!]
     allAuthors: [Author!]
+  }
+
+  type Mutation {
+    addBook(book: BookInput): Book
   }
 `
 const resolvers = {
@@ -127,6 +140,14 @@ const resolvers = {
           }
           return allAuthors
         }, [])
+    },
+  },
+
+  Mutation: {
+    addBook: (_, args) => {
+      const newBook = { ...args.book, id: uuid() }
+      books = books.concat(newBook)
+      return newBook
     },
   },
 }
