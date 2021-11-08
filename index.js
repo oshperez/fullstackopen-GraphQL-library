@@ -113,7 +113,7 @@ const typeDefs = gql`
 
   type Mutation {
     addBook(book: BookInput): Book
-    editAuthor(name: String!, setBornTo: Int!) : Author
+    editAuthor(name: String!, setBornTo: Int!): Author
   }
 `
 const resolvers = {
@@ -149,7 +149,15 @@ const resolvers = {
 
   Mutation: {
     addBook: (_, args) => {
-      const newBook = { ...args.book, id: uuid() }
+      const { book } = args
+      let author = authors.find((author) => author.name === book.author)
+
+      if (!author) {
+        author = { name: book.author, born: null, id: uuid() }
+        authors = authors.concat(author)
+      }
+
+      const newBook = { ...book, id: author.id }
       books = books.concat(newBook)
       return newBook
     },
