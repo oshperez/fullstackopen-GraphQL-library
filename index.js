@@ -119,18 +119,6 @@ const resolvers = {
   Query: {
     bookCount: () => books.length,
     authorCount: () => {
-      const authors = books
-        .map((book) => book.author)
-        .reduce((prevAuthors, currentAuthor) => {
-          let noDuplicateAuthors
-          if (prevAuthors.indexOf(currentAuthor) === -1) {
-            noDuplicateAuthors = prevAuthors.concat(currentAuthor)
-          } else {
-            noDuplicateAuthors = [...prevAuthors]
-          }
-          return noDuplicateAuthors
-        }, [])
-
       return authors.length
     },
     allBooks: (_, args) => {
