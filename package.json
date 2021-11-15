@@ -4,7 +4,7 @@
   "description": "GraphQL server with Apollo",
   "main": "index.js",
   "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
@@ -14,6 +14,11 @@
   "license": "MIT",
   "dependencies": {
     "apollo-server": "^3.4.0",
-    "graphql": "^16.0.1"
+    "graphql": "^16.0.1",
+    "mongoose": "^6.0.12",
+    "mongoose-unique-validator": "^3.0.0"
+  },
+  "devDependencies": {
+    "dotenv": "^10.0.0"
   }
 }
