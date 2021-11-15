@@ -4,6 +4,8 @@
   "description": "GraphQL server with Apollo",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon --delay 5 index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -19,6 +21,7 @@
     "mongoose-unique-validator": "^3.0.0"
   },
   "devDependencies": {
-    "dotenv": "^10.0.0"
+    "dotenv": "^10.0.0",
+    "nodemon": "^2.0.15"
   }
 }
