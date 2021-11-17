@@ -88,22 +88,41 @@ const resolvers = {
   },
 
   Mutation: {
-    addBook: async (_, { bookObj }) => {
+    addBook: async (_, args) => {
+      const { bookObj } = args
+
+      // Find author in the database
       let authorInDB = await Author.findOne({ name: bookObj.author })
 
+      // If there is not author with that name, create one and save it to the database
       if (!authorInDB) {
         const author = new Author({ name: bookObj.author })
-        authorInDB = await author.save()
+        try {
+          authorInDB = await author.save()
+        } catch (error) {
+          return new UserInputError(error.message, { args })
+        }
       }
 
+      // Create new book
       const book = new Book({ ...bookObj, author: authorInDB._id })
+
+      // Add new book id to its author in the database
       await Author.findByIdAndUpdate(
         { _id: authorInDB._id },
         { books: authorInDB.books.concat(book._id) }
       )
-      const savedBook = await book.save()
+      
+      // Save the new book to the database
+      try {
+        const savedBook = await book.save()
+        
+        // Find the newly-created book, populate its field author and return it
+        return Book.findById(savedBook._id).populate("author")
+      } catch (error) {
+        return new UserInputError(error.message, { args })
+      }
 
-      return Book.findById(savedBook._id).populate("author")
     },
     editAuthor: async (_, args) => {
       const { name, setBornTo: born } = args

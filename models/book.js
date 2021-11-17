@@ -4,9 +4,9 @@ const uniqueValidator = require("mongoose-unique-validator")
 const schema = new mongoose.Schema({
   title: {
     type: String,
-    required: true,
+    required: [true, "Book title required"],
     unique: true,
-    minlength: 2,
+    minlength: [2, "Must contain at least 2 characters, got {VALUE}"],
   },
   author: {
     type: mongoose.Schema.Types.ObjectId,
@@ -16,7 +16,6 @@ const schema = new mongoose.Schema({
     type: Number,
   },
   genres: [{ type: String }],
-  
 })
 
 schema.plugin(uniqueValidator)
