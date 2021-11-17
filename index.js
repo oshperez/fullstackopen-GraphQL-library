@@ -1,4 +1,4 @@
-const { ApolloServer, gql } = require("apollo-server")
+const { ApolloServer, UserInputError, gql } = require("apollo-server")
 const {
   ApolloServerPluginLandingPageGraphQLPlayground,
 } = require("apollo-server-core")
@@ -7,84 +7,6 @@ require("dotenv").config()
 const mongoose = require("mongoose")
 const Author = require("./models/author")
 const Book = require("./models/book")
-
-let authors = [
-  {
-    name: "Robert Martin",
-    id: "afa51ab0-344d-11e9-a414-719c6709cf3e",
-    born: 1952,
-  },
-  {
-    name: "Martin Fowler",
-    id: "afa5b6f0-344d-11e9-a414-719c6709cf3e",
-    born: 1963,
-  },
-  {
-    name: "Fyodor Dostoevsky",
-    id: "afa5b6f1-344d-11e9-a414-719c6709cf3e",
-    born: 1821,
-  },
-  {
-    name: "Joshua Kerievsky", // birthyear not known
-    id: "afa5b6f2-344d-11e9-a414-719c6709cf3e",
-  },
-  {
-    name: "Sandi Metz", // birthyear not known
-    id: "afa5b6f3-344d-11e9-a414-719c6709cf3e",
-  },
-]
-
-let books = [
-  {
-    title: "Clean Code",
-    published: 2008,
-    author: "Robert Martin",
-    id: "afa5b6f4-344d-11e9-a414-719c6709cf3e",
-    genres: ["refactoring"],
-  },
-  {
-    title: "Agile software development",
-    published: 2002,
-    author: "Robert Martin",
-    id: "afa5b6f5-344d-11e9-a414-719c6709cf3e",
-    genres: ["agile", "patterns", "design"],
-  },
-  {
-    title: "Refactoring, edition 2",
-    published: 2018,
-    author: "Martin Fowler",
-    id: "afa5de00-344d-11e9-a414-719c6709cf3e",
-    genres: ["refactoring"],
-  },
-  {
-    title: "Refactoring to patterns",
-    published: 2008,
-    author: "Joshua Kerievsky",
-    id: "afa5de01-344d-11e9-a414-719c6709cf3e",
-    genres: ["refactoring", "patterns"],
-  },
-  {
-    title: "Practical Object-Oriented Design, An Agile Primer Using Ruby",
-    published: 2012,
-    author: "Sandi Metz",
-    id: "afa5de02-344d-11e9-a414-719c6709cf3e",
-    genres: ["refactoring", "design"],
-  },
-  {
-    title: "Crime and punishment",
-    published: 1866,
-    author: "Fyodor Dostoevsky",
-    id: "afa5de03-344d-11e9-a414-719c6709cf3e",
-    genres: ["classic", "crime"],
-  },
-  {
-    title: "The Demon ",
-    published: 1872,
-    author: "Fyodor Dostoevsky",
-    id: "afa5de04-344d-11e9-a414-719c6709cf3e",
-    genres: ["classic", "revolution"],
-  },
-]
 
 console.log("Conntecting to", process.env.MONGODB_URI)
 
@@ -122,7 +44,7 @@ const typeDefs = gql`
   type Query {
     bookCount: Int
     authorCount: Int
-    allBooks(author: String, genre: String): [Book!]
+    allBooks(author: String, genres: [String]): [Book!]
     allAuthors: [Author!]
   }
 
@@ -132,11 +54,31 @@ const typeDefs = gql`
   }
 `
 const resolvers = {
+  Author: {
+    bookCount: async ({ name }) => {
+      const { books } = await Author.findOne({ name }, { _id: 0, books: 1 })
+      return books.length
+    },
+  },
   Query: {
     bookCount: () => Book.collection.countDocuments(),
     authorCount: () => Author.collection.countDocuments(),
     allBooks: async (_, args) => {
-      const books = await Book.find({}).populate("author")
+      const { author, genres } = args
+      let query = {}
+
+      if (author) {
+        const authorInDB = await Author.findOne({ name: author })
+        if (authorInDB) {
+          query["author"] = authorInDB._id
+        }
+      }
+
+      if (genres.length > 0) {
+        query["genres"] = { $in: genres }
+      }
+
+      const books = await Book.find(query).populate("author")
       return books
     },
     allAuthors: async () => {
@@ -148,24 +90,38 @@ const resolvers = {
   Mutation: {
     addBook: async (_, { bookObj }) => {
       let authorInDB = await Author.findOne({ name: bookObj.author })
+
       if (!authorInDB) {
-        const author = new Author({ name: bookObj.author, born: null })
+        const author = new Author({ name: bookObj.author })
         authorInDB = await author.save()
       }
 
       const book = new Book({ ...bookObj, author: authorInDB._id })
+      await Author.findByIdAndUpdate(
+        { _id: authorInDB._id },
+        { books: authorInDB.books.concat(book._id) }
+      )
       const savedBook = await book.save()
 
       return Book.findById(savedBook._id).populate("author")
     },
-    editAuthor: (_, args) => {
-      targetAuthor = authors.find((author) => author.name === args.name)
-      if (!targetAuthor) return null
-      const editedAuthor = { ...targetAuthor, born: args.setBornTo }
-      authors = authors.map((author) =>
-        author.name === targetAuthor.name ? editedAuthor : author
-      )
-      return editedAuthor
+    editAuthor: async (_, args) => {
+      const { name, setBornTo: born } = args
+      try {
+        const updatedUser = await Author.findOneAndUpdate(
+          { name },
+          { $set: { born } },
+          { new: true }
+        )
+        if (!updatedUser) {
+          throw new UserInputError("Author does not exist")
+        }
+        return updatedUser
+      } catch (error) {
+        throw new UserInputError(error.message, {
+          args,
+        })
+      }
     },
   },
 }
