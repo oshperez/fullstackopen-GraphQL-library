@@ -99,7 +99,7 @@ const resolvers = {
         }
       }
 
-      if (genres.length > 0) {
+      if (genres?.length > 0) {
         query["genres"] = { $in: genres }
       }
 
@@ -192,7 +192,7 @@ const resolvers = {
       const { username, password } = credentials
       const user = await User.findOne({ username })
 
-      if (!user || password !== "classified") {
+      if (!user || password !== "c") {
         throw new UserInputError("Wrong credentials", {
           invalidArgs: credentials,
         })
