@@ -4,6 +4,7 @@ const {
   ApolloServerPluginDrainHttpServer,
 } = require("apollo-server-core")
 const { execute, subscribe } = require("graphql")
+const { PubSub } = require("graphql-subscriptions")
 const { makeExecutableSchema } = require("@graphql-tools/schema")
 const { SubscriptionServer } = require("subscriptions-transport-ws")
 
@@ -17,6 +18,8 @@ const { v1: uuid } = require("uuid")
 const Author = require("./models/author")
 const Book = require("./models/book")
 const User = require("./models/user")
+
+const pubsub = new PubSub()
 
 console.log("Conntecting to", process.env.MONGODB_URI)
 
@@ -42,6 +45,7 @@ const typeDefs = gql`
     name: String!
     bookCount: Int
     born: Int
+    id: ID!
   }
 
   type User {
@@ -69,6 +73,10 @@ const typeDefs = gql`
   input CredentialsInput {
     username: String!
     password: String!
+  }
+
+  type Subscription {
+    bookAdded: Book
   }
 
   type Query {
@@ -157,8 +165,13 @@ const resolvers = {
       try {
         const savedBook = await book.save()
 
-        // Find the newly-created book, populate its field author and return it
-        return Book.findById(savedBook._id).populate("author")
+        // Find the newly-created book and populate its field author
+        const bookAdded = await Book.findById(savedBook._id).populate("author")
+
+        // Publish event
+        pubsub.publish("BOOK_ADDED", { bookAdded })
+
+        return bookAdded
       } catch (error) {
         return new UserInputError(error.message, { args })
       }
@@ -210,6 +223,11 @@ const resolvers = {
       return { value: token }
     },
   },
+  Subscription: {
+    bookAdded: {
+      subscribe: () => pubsub.asyncIterator(["BOOK_ADDED"]),
+    },
+  },
 }
 
 async function startApolloServer(typeDefs, resolvers) {
@@ -254,7 +272,7 @@ async function startApolloServer(typeDefs, resolvers) {
     },
     {
       server: httpServer,
-      path: "/",
+      path: "/graphql",
     }
   )
 
