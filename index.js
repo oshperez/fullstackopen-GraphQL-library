@@ -1,11 +1,19 @@
-const { ApolloServer, UserInputError, gql } = require("apollo-server")
+const { ApolloServer, UserInputError, gql } = require("apollo-server-express")
 const {
   ApolloServerPluginLandingPageGraphQLPlayground,
+  ApolloServerPluginDrainHttpServer,
 } = require("apollo-server-core")
-const { v1: uuid } = require("uuid")
-require("dotenv").config()
+const { execute, subscribe } = require("graphql")
+const { makeExecutableSchema } = require("@graphql-tools/schema")
+const { SubscriptionServer } = require("subscriptions-transport-ws")
+
+const http = require("http")
+const express = require("express")
 const jwt = require("jsonwebtoken")
 const mongoose = require("mongoose")
+require("dotenv").config()
+const { v1: uuid } = require("uuid")
+
 const Author = require("./models/author")
 const Book = require("./models/book")
 const User = require("./models/user")
@@ -204,21 +212,62 @@ const resolvers = {
   },
 }
 
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
-  context: async ({ req }) => {
-    const auth = req ? req.headers.authorization : null
+async function startApolloServer(typeDefs, resolvers) {
+  const app = express()
+  const httpServer = http.createServer(app)
 
-    if (auth && auth.toLowerCase().startsWith("bearer ")) {
-      const decodedToken = jwt.verify(auth.substring(7), process.env.JWT_SECRET)
-      const currentUser = await User.findById(decodedToken.id)
-      return { currentUser }
+  const schema = makeExecutableSchema({ typeDefs, resolvers })
+  const server = new ApolloServer({
+    schema,
+    context: async ({ req }) => {
+      const auth = req ? req.headers.authorization : null
+
+      if (auth && auth.toLowerCase().startsWith("bearer ")) {
+        const decodedToken = jwt.verify(
+          auth.substring(7),
+          process.env.JWT_SECRET
+        )
+        const currentUser = await User.findById(decodedToken.id)
+        return { currentUser }
+      }
+    },
+    plugins: [
+      ApolloServerPluginLandingPageGraphQLPlayground({}),
+      ApolloServerPluginDrainHttpServer({ httpServer }),
+      {
+        async serverWillStart() {
+          return {
+            async drainServer() {
+              subscriptionServer.close()
+            },
+          }
+        },
+      },
+    ],
+  })
+
+  const subscriptionServer = SubscriptionServer.create(
+    {
+      schema,
+      execute,
+      subscribe,
+    },
+    {
+      server: httpServer,
+      path: "/",
     }
-  },
-  plugins: [ApolloServerPluginLandingPageGraphQLPlayground({})],
-})
+  )
 
-server.listen().then(({ url }) => {
-  console.log(`Server ready at ${url}`)
-})
+  await server.start()
+  server.applyMiddleware({
+    app,
+    path: "/",
+  })
+
+  await new Promise((resolve) =>
+    httpServer.listen({ port: process.env.PORT }, resolve)
+  )
+  console.log(`Server ready at http://localhost:4000${server.graphqlPath}`)
+}
+
+startApolloServer(typeDefs, resolvers)
